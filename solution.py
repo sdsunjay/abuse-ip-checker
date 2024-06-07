@@ -1,6 +1,9 @@
 import click
-import socket
 import requests
+import csv
+import os
+from datetime import datetime
+import ipaddress
 
 from constants import API_KEY
 
@@ -89,34 +92,81 @@ def resolve_domain_to_ip(domain):
         return ip
     except socket.gaierror:
         print(f"Error: Unable to resolve domain {domain}")
-        return None
+
+def is_valid_ip(address):
+    try:
+        ipaddress.ip_address(address)
+        return True
+    except ValueError:
+        return False
+
+def read_ips_from_file(filename, ip_set):
+    with open(filename, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line:
+                ip_set.add(line if is_valid_ip(line) else resolve_domain_to_ip(line))
+
+def add_ip(ip_set, ip=None, domain=None):
+    if ip and is_valid_ip(ip):
+        ip_set.add(ip)
+    if domain:
+        resolved_ip = resolve_domain_to_ip(domain)
+        if resolved_ip and is_valid_ip(resolved_ip):
+            ip_set.add(resolved_ip)
+
+def save_blacklist_to_csv(blacklist_data, blacklist_dir):
+    now = datetime.now()
+    filename = f"{now.year}-{now.month:02d}-{now.day:02d} {now.hour:02d}:{now.minute:02d}.csv"
+    filepath = os.path.join(blacklist_dir, filename)
+
+    os.makedirs(blacklist_dir, exist_ok=True)
+
+    with open(filepath, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['ipAddress', 'abuseConfidenceScore'])
+        for entry in blacklist_data:
+            writer.writerow([entry['ipAddress'], entry['abuseConfidenceScore']])
+
+    return filepath
+
+def download_blacklist(blacklist_dir, confidence_minimum=75):
+    url = 'https://api.abuseipdb.com/api/v2/blacklist'
+    headers = {
+        'Key': API_KEY,
+        'Accept': 'application/json'
+    }
+    params = {
+        'confidenceMinimum': confidence_minimum
+    }
+
+    # default limit is 10,000 IPs with no subscription
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        blacklist_data = response.json()['data']
+        filepath = save_blacklist_to_csv(blacklist_data, blacklist_dir)
+        return filepath
+    else:
+        response.raise_for_status()
 
 @click.command()
-@click.option('--ip', help='The IP address to check.')
+@click.option('--ip', '-i', help='The IP address to check.')
 @click.option('--domain', '-d', help='The domain name to check.')
 @click.option('--filename', '-f', type=click.Path(exists=True), help='File containing IP addresses to check.')
-def main(ip, domain, filename):
+@click.option('--blacklist', is_flag=True, help='Download blacklist from AbuseIPDB.')
+def main(ip, domain, filename, blacklist):
     ips = set()
-    lines = []
-    if filename:
-        with open(filename, 'r') as file:
-            lines = file.readlines()
-        lines = [line.strip() for line in lines]
-        for line in lines:
-            if line:
-                if line.replace('.', '').isdigit():
-                    ips.add(line)
-                else:
-                    resolved_ip = resolve_domain_to_ip(line)
-                    if resolved_ip:
-                        ips.add(resolved_ip)
 
-    elif domain:
-        resolved_ip = resolve_domain_to_ip(domain)
-        if resolved_ip:
-            ips.add(resolved_ip)
-    elif ip:
-        ips.add(ip)
+    if blacklist:
+        blacklist_dir = "blacklist"
+
+        filepath = download_blacklist(blacklist_dir)
+        click.echo(f'Blacklist saved to: {filepath}')
+
+    if filename:
+        read_ips_from_file(filename, ips)
+    else:
+        add_ip(ips, ip, domain)
 
     for ip in ips:
         if ip:
