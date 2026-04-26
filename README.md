@@ -1,156 +1,118 @@
 # Abuse IP Checker
 
-This script checks IP addresses or domain names against the AbuseIPDB API to retrieve information about potential abuse reports. The script can take a single IP address, a single domain name, or a file containing multiple IP addresses or domain names.
+A multi-source threat intelligence CLI tool that checks IP addresses against AbuseIPDB, VirusTotal, Shodan, DNS blocklists, WHOIS, and ipinfo.io. Includes built-in Little Snitch integration for auditing macOS firewall rules.
 
-## Prerequistes
-Create an account and request  an API key on the [AbuseIPDB website](https://www.abuseipdb.com/). It is free if you have under 1000 requests per month.
+## Setup
 
-## Requirements
-
-- Python 3.x
-- `click` library
-- `requests` library
-
-## Installation
-
-1. Clone the repository or download the script.
-1. Install the required Python libraries using pip:
+1. Clone the repository:
    ```bash
-   $ pip install requests click
+   git clone <repo-url>
+   cd abuse-ip-checker
    ```
-1. Replace `YOUR_API_KEY` with your actual AbuseIPDB API key in the script.
+
+2. Install dependencies (Python 3.10+ required):
+   ```bash
+   pip install -r requirements.txt
+   ```
+   Or with pyproject.toml:
+   ```bash
+   pip install .
+   ```
+
+3. Configure API keys:
+   ```bash
+   python solution.py configure
+   ```
+   This saves keys to `~/.abuse-ip-checker/config.yaml`. You can also set environment variables, which **override** any value in the YAML config:
+   - `ABUSEIPDB_API_KEY`
+   - `VIRUSTOTAL_API_KEY` (optional)
+   - `SHODAN_API_KEY` (optional)
+
+   Free sources (DNS blocklists, WHOIS, ipinfo.io) always run and need no API key.
+
+   > **Note:** `constants.py` exists only as a backwards-compatibility shim that re-exports the resolved AbuseIPDB key from the config layer. It is not a hardcoded-key file — do not put secrets in it.
 
 ## Usage
 
-### Command Line Options
-
-- `--ip`: Specifies a single IP address to check.
-- `--domain` or `-d`: Specifies a single domain name to check.
-- `--filename` or `-f`: Specifies a file containing IP addresses or domain names to check. Each IP address or domain name should be on a new line.
-
-### Examples
-
-#### Check a Single IP Address
-
-To check a single IP address:
+### Check IP Addresses
 
 ```bash
-$ python solution.py --ip 142.250.217.0
+# Check a single IP
+python solution.py check --ip 1.2.3.4
+
+# Check a domain
+python solution.py check --domain example.com
+
+# Check IPs from a file (one per line, IPs or domains)
+python solution.py check -f ips.txt
+
+# JSON output (for piping to other tools)
+python solution.py check -f ips.txt --json
+
+# Verbose output (full details per IP)
+python solution.py check -f ips.txt -v
 ```
 
-#### Check a Single Domain Name
+### Scan Little Snitch Rules
 
-To check a single domain name:
+Audit all allowed connections in a Little Snitch export:
 
 ```bash
-$ python solution.py --domain example.com
+# Export your Little Snitch rules (requires sudo):
+sudo /Applications/Little\ Snitch.app/Contents/Components/littlesnitch export-model /tmp/ls_rules.json
+
+# Scan all allowed IPs:
+python solution.py scan-littlesnitch /tmp/ls_rules.json
+
+# With JSON or verbose output:
+python solution.py scan-littlesnitch /tmp/ls_rules.json --json
+python solution.py scan-littlesnitch /tmp/ls_rules.json -v
 ```
 
-#### Check IP Addresses or Domain Names from a File
+### Download Blacklist
 
-To check IP addresses or domain names from a file:
+Download the AbuseIPDB blacklist (top 10,000 most reported IPs):
 
 ```bash
-$ python solution.py --filename ips_or_domains.txt
+python solution.py blacklist
 ```
 
-### File Format
-
-The file specified with the `--filename` option should contain one IP address or domain name per line, for example:
-
-```plaintext
-142.250.217.0
-example.com
-192.168.1.1
-anotherdomain.com
-```
-
-### Output
-
-The script outputs the following information for each IP address checked:
-
-- IP Address
-- Abuse Confidence Score
-- Total Reports
-- Recent Reports (if available)
-- ISP
-- Usage Type
-- Domain Name
-- Country
-- City
-
-### Error Handling
-
-If the script encounters an error (e.g., unable to resolve a domain name or issues with the AbuseIPDB API), it will print an appropriate error message.
-
-### Example Output
+### Configure API Keys
 
 ```bash
-$ python solution.py --ip 142.250.217.0
-```
-```yaml
-Checking IP: 142.250.217.0
-IP Address: 142.250.217.0
-Abuse Confidence Score: 0
-Total Reports: 0
-No recent reports found.
-ISP: Google LLC
-Usage Type: Data Center/Web Hosting/Transit
-Domain Name: google.com
-Country: United States
-City: Mountain View
-------------------------------------------------------------
+python solution.py configure
 ```
 
-```bash
-$ python solution.py --ip 192.142.226.153
-```
-```yaml
-Checking IP: 192.142.226.153
-IP Address: 192.142.226.153
-Is White Listed: N/A
-Last Reported At: 2024-04-22T16:35:57+00:00
-Abuse Confidence Score: 57
-Total Reports: 79
-Reports for IP Address: 192.142.226.153
-Reported At: 2024-04-22T16:35:57+00:00
-Comment: Credential brute-force attacks on webpage logins
-Categories: [18]
-Reporter ID: 144976
-Reporter Country: DE
-----------------------------------------
-Reported At: 2024-04-20T14:02:16+00:00
-Comment: Multiple WP scan detected from same source ip.-111
-Categories: [18]
-Reporter ID: 102992
-Reporter Country: ID
-----------------------------------------
-Reported At: 2024-04-12T03:49:56+00:00
-Comment: Events: TCP SYN Discovery or Flooding, Seen 4 times in the last 10800 seconds
-Categories: [4]
-Reporter ID: 131395
-Reporter Country: BR
-----------------------------------------
-Reported At: 2024-04-02T08:11:09+00:00
-Comment: GET /vendor/
-Categories: [21]
-Reporter ID: 60763
-Reporter Country: FR
-----------------------------------------
-Reported At: 2024-03-29T12:45:26+00:00
-Comment: (cpanel) Failed cPanel login from 192.142.226.153 (TH/Thailand/-): 1 in the last 3600 secs
-Categories: [18, 21]
-Reporter ID: 55388
-Reporter Country: MY
-----------------------------------------
-Reported At: 2024-03-27T09:07:00+00:00
-Comment: Unauthorized login attempts [ pure-ftpd-constant, sshd, pure-ftpd]
-Categories: [5, 18, 22]
-Reporter ID: 31143
-Reporter Country: ES
-```
+## Threat Intelligence Sources
+
+| Source | API Key Required | What It Checks |
+|--------|-----------------|----------------|
+| DNS Blocklists | No | DroneBL, SpamCop, SORBS, UCEProtect |
+| WHOIS / Reverse DNS | No | Org name, hostname |
+| ipinfo.io | No | Geolocation, ISP, org |
+| AbuseIPDB | Yes | Abuse score, reports, ISP |
+| VirusTotal | Yes (optional) | Malware detections |
+| Shodan | Yes (optional) | Open ports, services |
+
+> **DNSBL caveat:** A DNS blocklist lookup that comes back empty is reported as "not listed", but this is indistinguishable from the case where the DNSBL server is unreachable or rate-limiting us. Treat a clean DNSBL result as "no positive evidence of listing", not as a guarantee the IP is absent from the list.
+
+## Threat Levels
+
+Each IP gets a computed threat level based on combined findings:
+
+| Level | Criteria |
+|-------|----------|
+| CRITICAL | Abuse score >= 75, or VT score >= 10, or on 3+ blocklists |
+| WARNING | Abuse score >= 25, or VT score >= 5, or on 1-2 blocklists |
+| LOW | Any abuse score > 0, or any reports, or VT score > 0 |
+| CLEAN | No indicators from any source |
+
+## Output Formats
+
+- **Default**: Summary table with threat level, score, org, country
+- **`--verbose` / `-v`**: Full details including reports, blocklists, WHOIS
+- **`--json`**: JSON array for programmatic use
 
 ## License
 
-This project is licensed under the MIT License.
-"""
+MIT
