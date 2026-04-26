@@ -1,7 +1,7 @@
 import json
 import tempfile
 import os
-from abuse_ip_checker.services.littlesnitch import parse_littlesnitch_export
+from abuse_ip_checker.services.littlesnitch import parse_littlesnitch_export, is_public_ip, is_domain
 
 
 def _make_export(rules):
@@ -80,9 +80,39 @@ def test_load_from_file():
         json.dump(export, f)
         path = f.name
     try:
-        from littlesnitch import load_littlesnitch_file
+        from abuse_ip_checker.services.littlesnitch import load_littlesnitch_file
         results = load_littlesnitch_file(path)
         assert len(results) == 1
         assert results[0]["ip"] == "1.2.3.4"
     finally:
         os.unlink(path)
+
+
+def test_filters_full_rfc1918_172_range():
+    # RFC 1918 reserves 172.16.0.0/12 = 172.16.0.0 - 172.31.255.255
+    assert is_public_ip("172.16.0.1") is False
+    assert is_public_ip("172.20.0.1") is False
+    assert is_public_ip("172.31.255.254") is False
+    # Just outside the range is public
+    assert is_public_ip("172.32.0.1") is True
+
+
+def test_filters_link_local_169_254():
+    # IPv4 link-local / APIPA, includes the AWS/Azure metadata IP
+    assert is_public_ip("169.254.0.1") is False
+    assert is_public_ip("169.254.169.254") is False
+
+
+def test_filters_full_multicast_range():
+    # IANA multicast is 224.0.0.0/4 = 224 through 239
+    assert is_public_ip("224.0.0.1") is False
+    assert is_public_ip("239.255.255.250") is False  # SSDP
+    assert is_public_ip("225.0.0.1") is False
+
+
+def test_is_domain_accepts_leading_digit_hostnames():
+    # RFC 1123 allows hostnames to start with a digit
+    assert is_domain("1example.com") is True
+    assert is_domain("3com.com") is True
+    # IPs are not domains
+    assert is_domain("8.8.8.8") is False

@@ -3,29 +3,35 @@ import ipaddress
 import socket
 
 
-PRIVATE_PREFIXES = ["10.", "172.16.", "172.17.", "172.18.", "172.19.",
-                    "192.168.", "127.", "0.0.0.0", "224.", "255."]
-
-
 def is_public_ip(addr):
-    """Check if an address is a public IPv4 address."""
-    if not addr or ":" in addr:  # skip IPv6 including fe80::
+    """Return True iff addr is a routable public IPv4 address.
+
+    IPv6 is intentionally skipped — this checker is IPv4-only.
+    Uses ipaddress for classification so RFC 1918 (10/8, 172.16/12,
+    192.168/16), loopback (127/8), link-local (169.254/16),
+    multicast (224/4), reserved (240/4), and 0.0.0.0 are all caught.
+    """
+    if not addr or ":" in addr:
         return False
-    for prefix in PRIVATE_PREFIXES:
-        if addr.startswith(prefix):
-            return False
     try:
-        ipaddress.ip_address(addr)
-        return True
+        ip = ipaddress.ip_address(addr)
     except ValueError:
         return False
+    if ip.version != 4:
+        return False
+    return not (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
 
 
 def is_domain(val):
-    """Check if a value looks like a domain (not an IP)."""
-    if not val:
+    """Return True iff val looks like a domain rather than an IP literal."""
+    if not val or ":" in val or "." not in val:
         return False
-    return not val[0].isdigit() and "." in val and ":" not in val
+    try:
+        ipaddress.ip_address(val)
+        return False  # Parses as an IP, not a domain
+    except ValueError:
+        return True
 
 
 def parse_littlesnitch_export(export_data):
@@ -43,8 +49,8 @@ def parse_littlesnitch_export(export_data):
     for rule in allow_rules:
         process = rule.get("process", "unknown")
 
-        for field in ["remote-addresses", "remote-hosts", "remote-domains"]:
-            val = str(rule.get(field, ""))
+        for key in ["remote-addresses", "remote-hosts", "remote-domains"]:
+            val = str(rule.get(key, ""))
             if not val:
                 continue
 
@@ -69,7 +75,7 @@ def parse_littlesnitch_export(export_data):
 
 def load_littlesnitch_file(filepath):
     """Load a Little Snitch export JSON file and parse it."""
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
     return parse_littlesnitch_export(data)
 
