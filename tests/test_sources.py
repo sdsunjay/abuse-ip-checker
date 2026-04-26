@@ -1,6 +1,6 @@
 import time
-from unittest.mock import patch, MagicMock
-from abuse_ip_checker.clients.sources import retry_with_backoff, parse_abuseipdb_response, parse_ipinfo_response, reverse_ip, check_dns_blocklists
+from unittest.mock import MagicMock
+from abuse_ip_checker.clients.sources import retry_with_backoff, parse_abuseipdb_response, parse_ipinfo_response, reverse_ip
 from abuse_ip_checker.domain.models import IPResult
 
 

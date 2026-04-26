@@ -1,9 +1,17 @@
+import sys
 import time
 import subprocess
 import socket
 import requests
 from abuse_ip_checker.domain.models import IPResult
 from abuse_ip_checker.config.config import get_api_key
+
+DNSBLS = (
+    "dnsbl.dronebl.org",
+    "bl.spamcop.net",
+    "dnsbl-1.uceprotect.net",
+    "dnsbl.sorbs.net",
+)
 
 # --- Retry wrapper ---
 
@@ -17,7 +25,7 @@ def retry_with_backoff(func, max_retries=3, base_delay=1.0):
                 delay = base_delay * (2 ** attempt)
                 time.sleep(delay)
             else:
-                print(f"  Warning: {e} (after {max_retries} attempts)")
+                print(f"  Warning: {e} (after {max_retries} attempts)", file=sys.stderr)
                 return None
 
 
@@ -149,25 +157,26 @@ def check_shodan(ip, result, config_path=None):
 
 
 def check_dns_blocklists(ip, result):
-    """Check IP against DNS-based blocklists. No API key needed."""
-    blocklists = [
-        "dnsbl.dronebl.org",
-        "bl.spamcop.net",
-        "dnsbl-1.uceprotect.net",
-        "dnsbl.sorbs.net",
-    ]
+    """Check IP against DNS-based blocklists. No API key needed.
+
+    Limitation: gethostbyname can't distinguish "not listed" (NXDOMAIN)
+    from "DNSBL unreachable". Both surface as gaierror and we treat them
+    both as "not listed", so a DNSBL outage will silently undercount.
+    """
     rev = reverse_ip(ip)
-    for bl in blocklists:
-        try:
-            query = f"{rev}.{bl}"
-            socket.setdefaulttimeout(3)
-            socket.gethostbyname(query)
-            # If it resolves, the IP is listed
-            result.dns_blocklists.append(bl)
-        except socket.gaierror:
-            pass  # Not listed
-        except socket.timeout:
-            pass  # Timeout, skip
+    prev_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(3)
+    try:
+        for bl in DNSBLS:
+            try:
+                socket.gethostbyname(f"{rev}.{bl}")
+                result.dns_blocklists.append(bl)
+            except socket.gaierror:
+                pass  # Not listed (or DNSBL unreachable — see docstring)
+            except socket.timeout:
+                pass
+    finally:
+        socket.setdefaulttimeout(prev_timeout)
 
 
 def check_whois(ip, result):
