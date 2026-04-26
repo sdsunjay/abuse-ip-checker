@@ -14,31 +14,95 @@ def test_ip_result_defaults():
 
 
 def test_threat_level_clean():
-    assert compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=[]) == "CLEAN"
-    assert compute_threat_level(abuse_score=None, total_reports=0, virustotal_score=None, dns_blocklists=[]) == "CLEAN"
+    assert (
+        compute_threat_level(
+            abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=[]
+        )
+        == "CLEAN"
+    )
+    assert (
+        compute_threat_level(
+            abuse_score=None, total_reports=0, virustotal_score=None, dns_blocklists=[]
+        )
+        == "CLEAN"
+    )
 
 
 def test_threat_level_low():
-    assert compute_threat_level(abuse_score=5, total_reports=1, virustotal_score=None, dns_blocklists=[]) == "LOW"
-    assert compute_threat_level(abuse_score=0, total_reports=3, virustotal_score=None, dns_blocklists=[]) == "LOW"
-    assert compute_threat_level(abuse_score=None, total_reports=0, virustotal_score=2, dns_blocklists=[]) == "LOW"
+    assert (
+        compute_threat_level(
+            abuse_score=5, total_reports=1, virustotal_score=None, dns_blocklists=[]
+        )
+        == "LOW"
+    )
+    assert (
+        compute_threat_level(
+            abuse_score=0, total_reports=3, virustotal_score=None, dns_blocklists=[]
+        )
+        == "LOW"
+    )
+    assert (
+        compute_threat_level(
+            abuse_score=None, total_reports=0, virustotal_score=2, dns_blocklists=[]
+        )
+        == "LOW"
+    )
 
 
 def test_threat_level_warning():
-    assert compute_threat_level(abuse_score=25, total_reports=10, virustotal_score=None, dns_blocklists=[]) == "WARNING"
-    assert compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=5, dns_blocklists=[]) == "WARNING"
-    assert compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=["dnsbl.dronebl.org"]) == "WARNING"
-    assert compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=["a", "b"]) == "WARNING"
+    assert (
+        compute_threat_level(
+            abuse_score=25, total_reports=10, virustotal_score=None, dns_blocklists=[]
+        )
+        == "WARNING"
+    )
+    assert (
+        compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=5, dns_blocklists=[])
+        == "WARNING"
+    )
+    assert (
+        compute_threat_level(
+            abuse_score=0,
+            total_reports=0,
+            virustotal_score=None,
+            dns_blocklists=["dnsbl.dronebl.org"],
+        )
+        == "WARNING"
+    )
+    assert (
+        compute_threat_level(
+            abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=["a", "b"]
+        )
+        == "WARNING"
+    )
 
 
 def test_threat_level_critical():
-    assert compute_threat_level(abuse_score=75, total_reports=50, virustotal_score=None, dns_blocklists=[]) == "CRITICAL"
-    assert compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=10, dns_blocklists=[]) == "CRITICAL"
-    assert compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=["a", "b", "c"]) == "CRITICAL"
+    assert (
+        compute_threat_level(
+            abuse_score=75, total_reports=50, virustotal_score=None, dns_blocklists=[]
+        )
+        == "CRITICAL"
+    )
+    assert (
+        compute_threat_level(abuse_score=0, total_reports=0, virustotal_score=10, dns_blocklists=[])
+        == "CRITICAL"
+    )
+    assert (
+        compute_threat_level(
+            abuse_score=0, total_reports=0, virustotal_score=None, dns_blocklists=["a", "b", "c"]
+        )
+        == "CRITICAL"
+    )
 
 
 def test_threat_level_highest_wins():
-    assert compute_threat_level(abuse_score=80, total_reports=5, virustotal_score=12, dns_blocklists=["a", "b", "c"]) == "CRITICAL"
+    assert (
+        compute_threat_level(
+            abuse_score=80, total_reports=5, virustotal_score=12, dns_blocklists=["a", "b", "c"]
+        )
+        == "CRITICAL"
+    )
 
 
 def test_ip_result_to_dict():

@@ -39,8 +39,7 @@ class IPResult:
     @property
     def threat_level(self) -> str:
         return compute_threat_level(
-            self.abuse_score, self.total_reports,
-            self.virustotal_score, self.dns_blocklists
+            self.abuse_score, self.total_reports, self.virustotal_score, self.dns_blocklists
         )
 
     def to_dict(self) -> dict:

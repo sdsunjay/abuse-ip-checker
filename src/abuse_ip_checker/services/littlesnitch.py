@@ -1,5 +1,5 @@
-import json
 import ipaddress
+import json
 import socket
 
 
@@ -19,8 +19,14 @@ def is_public_ip(addr):
         return False
     if ip.version != 4:
         return False
-    return not (ip.is_private or ip.is_loopback or ip.is_link_local
-                or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
 
 
 def is_domain(val):
@@ -43,7 +49,7 @@ def parse_littlesnitch_export(export_data):
     allow_rules = [r for r in rules if r.get("action") == "allow"]
 
     # Collect targets: key is ip or domain, value is set of processes
-    ip_targets = {}   # ip -> set of processes
+    ip_targets = {}  # ip -> set of processes
     domain_targets = {}  # domain -> set of processes
 
     for rule in allow_rules:
@@ -75,7 +81,7 @@ def parse_littlesnitch_export(export_data):
 
 def load_littlesnitch_file(filepath):
     """Load a Little Snitch export JSON file and parse it."""
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         data = json.load(f)
     return parse_littlesnitch_export(data)
 

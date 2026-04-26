@@ -4,24 +4,24 @@ A multi-source threat intelligence CLI tool that checks IP addresses against Abu
 
 ## Setup
 
+This project is managed with [uv](https://docs.astral.sh/uv/). Install uv first if you don't have it (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+
 1. Clone the repository:
    ```bash
    git clone <repo-url>
    cd abuse-ip-checker
    ```
 
-2. Install dependencies (Python 3.10+ required):
+2. Create a venv and install the project (Python 3.10+ required):
    ```bash
-   pip install -r requirements.txt
+   uv venv
+   uv pip install -e .
    ```
-   Or with pyproject.toml:
-   ```bash
-   pip install .
-   ```
+   This installs the `abuse-ip-checker` console script into `.venv/bin`. Use `uv run abuse-ip-checker ...` to invoke it without activating the venv.
 
 3. Configure API keys:
    ```bash
-   python solution.py configure
+   uv run abuse-ip-checker configure
    ```
    This saves keys to `~/.abuse-ip-checker/config.yaml` (file `0600`, dir `0700`, so only your user can read it). You can also set environment variables, which **override** any value in the YAML config:
    - `ABUSEIPDB_API_KEY`
@@ -38,19 +38,19 @@ A multi-source threat intelligence CLI tool that checks IP addresses against Abu
 
 ```bash
 # Check a single IP
-python solution.py check --ip 1.2.3.4
+uv run abuse-ip-checker check --ip 1.2.3.4
 
 # Check a domain
-python solution.py check --domain example.com
+uv run abuse-ip-checker check --domain example.com
 
 # Check IPs from a file (one per line, IPs or domains)
-python solution.py check -f ips.txt
+uv run abuse-ip-checker check -f ips.txt
 
 # JSON output (for piping to other tools)
-python solution.py check -f ips.txt --json
+uv run abuse-ip-checker check -f ips.txt --json
 
 # Verbose output (full details per IP)
-python solution.py check -f ips.txt -v
+uv run abuse-ip-checker check -f ips.txt -v
 ```
 
 ### Scan Little Snitch Rules
@@ -62,11 +62,11 @@ Audit all allowed connections in a Little Snitch export:
 sudo /Applications/Little\ Snitch.app/Contents/Components/littlesnitch export-model /tmp/ls_rules.json
 
 # Scan all allowed IPs:
-python solution.py scan-littlesnitch /tmp/ls_rules.json
+uv run abuse-ip-checker scan-littlesnitch /tmp/ls_rules.json
 
 # With JSON or verbose output:
-python solution.py scan-littlesnitch /tmp/ls_rules.json --json
-python solution.py scan-littlesnitch /tmp/ls_rules.json -v
+uv run abuse-ip-checker scan-littlesnitch /tmp/ls_rules.json --json
+uv run abuse-ip-checker scan-littlesnitch /tmp/ls_rules.json -v
 ```
 
 ### Download Blacklist
@@ -74,13 +74,13 @@ python solution.py scan-littlesnitch /tmp/ls_rules.json -v
 Download the AbuseIPDB blacklist (top 10,000 most reported IPs):
 
 ```bash
-python solution.py blacklist
+uv run abuse-ip-checker blacklist
 ```
 
 ### Configure API Keys
 
 ```bash
-python solution.py configure
+uv run abuse-ip-checker configure
 ```
 
 ## Threat Intelligence Sources
@@ -112,6 +112,28 @@ Each IP gets a computed threat level based on combined findings:
 - **Default**: Summary table with threat level, score, org, country
 - **`--verbose` / `-v`**: Full details including reports, blocklists, WHOIS
 - **`--json`**: JSON array for programmatic use
+
+## Development
+
+Install dev tooling and pre-commit hooks:
+
+```bash
+uv tool install pre-commit
+pre-commit install
+```
+
+Run the test suite:
+
+```bash
+uv run --with pytest pytest tests/
+```
+
+Lint and format manually (pre-commit runs both on every commit):
+
+```bash
+uv tool run --from ruff ruff check --fix .
+uv tool run --from ruff ruff format .
+```
 
 ## License
 
