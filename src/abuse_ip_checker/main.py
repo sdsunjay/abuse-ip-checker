@@ -1,9 +1,10 @@
-# solution.py
+# main.py
 import csv
 import ipaddress
 import os
 import socket
 from datetime import datetime
+from typing import cast
 
 import click
 
@@ -16,11 +17,16 @@ from abuse_ip_checker.config.config import (
     migrate_from_constants,
     save_config,
 )
-from abuse_ip_checker.services.littlesnitch import is_public_ip, load_littlesnitch_file, resolve_domain
+from abuse_ip_checker.domain.models import IPResult
+from abuse_ip_checker.services.littlesnitch import (
+    is_public_ip,
+    load_littlesnitch_file,
+    resolve_domain,
+)
 from abuse_ip_checker.utils.output import format_json, format_table, format_verbose
 
 
-def is_valid_ip(address):
+def is_valid_ip(address: str) -> bool:
     try:
         ipaddress.ip_address(address)
         return True
@@ -28,7 +34,7 @@ def is_valid_ip(address):
         return False
 
 
-def resolve_domain_to_ip(domain):
+def resolve_domain_to_ip(domain: str) -> str | None:
     try:
         return socket.gethostbyname(domain)
     except socket.gaierror:
@@ -36,12 +42,12 @@ def resolve_domain_to_ip(domain):
         return None
 
 
-def read_ips_from_file(filename):
+def read_ips_from_file(filename: str) -> set[str]:
     """Read IPs and domains from a file, return set of IPs."""
-    ips = set()
+    ips: set[str] = set()
     with open(filename) as f:
-        for line in f:
-            line = line.strip()
+        for raw_line in f:
+            line = raw_line.strip()
             if not line:
                 continue
             if is_valid_ip(line):
@@ -53,9 +59,13 @@ def read_ips_from_file(filename):
     return ips
 
 
-def collect_ips(ip=None, domain=None, filename=None):
+def collect_ips(
+    ip: str | None = None,
+    domain: str | None = None,
+    filename: str | None = None,
+) -> set[str]:
     """Collect IPs from all input sources."""
-    ips = set()
+    ips: set[str] = set()
     if filename:
         ips.update(read_ips_from_file(filename))
     if ip and is_valid_ip(ip):
@@ -67,7 +77,7 @@ def collect_ips(ip=None, domain=None, filename=None):
     return ips
 
 
-def display_results(results, output_json, verbose):
+def display_results(results: list[IPResult], output_json: bool, verbose: bool) -> None:
     """Display results in the requested format."""
     if output_json:
         click.echo(format_json(results))
@@ -79,7 +89,7 @@ def display_results(results, output_json, verbose):
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-def cli(ctx):
+def cli(ctx: click.Context) -> None:
     """Multi-source threat intelligence IP checker."""
     migrate_from_constants()
     if ctx.invoked_subcommand is None:
@@ -94,7 +104,13 @@ def cli(ctx):
 )
 @click.option("--json", "output_json", is_flag=True, help="Output results as JSON.")
 @click.option("--verbose", "-v", is_flag=True, help="Show full details for each IP.")
-def check(ip, domain, filename, output_json, verbose):
+def check(
+    ip: str | None,
+    domain: str | None,
+    filename: str | None,
+    output_json: bool,
+    verbose: bool,
+) -> None:
     """Check IPs/domains against all configured threat intel sources."""
     ips = collect_ips(ip, domain, filename)
     if not ips:
@@ -102,7 +118,7 @@ def check(ip, domain, filename, output_json, verbose):
 
     click.echo(f"Checking {len(ips)} IPs against all configured sources...\n", err=True)
 
-    results = []
+    results: list[IPResult] = []
     for addr in sorted(ips):
         result = check_all_sources(addr)
         results.append(result)
@@ -114,7 +130,7 @@ def check(ip, domain, filename, output_json, verbose):
 @click.argument("filepath", type=click.Path(exists=True))
 @click.option("--json", "output_json", is_flag=True, help="Output results as JSON.")
 @click.option("--verbose", "-v", is_flag=True, help="Show full details for each IP.")
-def scan_littlesnitch(filepath, output_json, verbose):
+def scan_littlesnitch(filepath: str, output_json: bool, verbose: bool) -> None:
     """Parse a Little Snitch export and check all allowed public IPs."""
     click.echo(f"Parsing Little Snitch export: {filepath}\n", err=True)
 
@@ -122,27 +138,27 @@ def scan_littlesnitch(filepath, output_json, verbose):
     click.echo(f"Found {len(entries)} unique targets in allow rules.", err=True)
 
     # Separate IPs and domains, resolve domains
-    ips_with_context = {}  # ip -> list of processes
+    ips_with_context: dict[str, list[str]] = {}
 
     for entry in entries:
         ip = entry.get("ip")
         domain = entry.get("domain")
-        processes = entry.get("processes", [])
+        processes: list[str] = list(entry.get("processes") or [])
 
-        if ip:
+        if isinstance(ip, str) and ip:
             ips_with_context.setdefault(ip, []).extend(processes)
-        elif domain:
+        elif isinstance(domain, str) and domain:
             resolved = resolve_domain(domain)
             if resolved and is_public_ip(resolved):
                 ips_with_context.setdefault(resolved, []).extend(processes)
 
     # Deduplicate process lists
-    for ip in ips_with_context:
-        ips_with_context[ip] = sorted(set(ips_with_context[ip]))
+    for ip_key in ips_with_context:
+        ips_with_context[ip_key] = sorted(set(ips_with_context[ip_key]))
 
     click.echo(f"Checking {len(ips_with_context)} public IPs...\n", err=True)
 
-    results = []
+    results: list[IPResult] = []
     for addr in sorted(ips_with_context.keys()):
         result = check_all_sources(addr)
         result.associated_processes = ips_with_context[addr]
@@ -152,7 +168,7 @@ def scan_littlesnitch(filepath, output_json, verbose):
 
 
 @cli.command()
-def blacklist():
+def blacklist() -> None:
     """Download the AbuseIPDB blacklist to CSV."""
     api_key = get_api_key("abuseipdb")
     if not api_key:
@@ -181,11 +197,12 @@ def blacklist():
 
 
 @cli.command()
-def configure():
+def configure() -> None:
     """Interactively configure API keys."""
     config = load_config()
-    if "api_keys" not in config:
-        config["api_keys"] = {}
+    raw: object = config.get("api_keys") or {}
+    api_keys: dict[str, str] = cast(dict[str, str], raw) if isinstance(raw, dict) else {}
+    config["api_keys"] = api_keys
 
     sources = {
         "abuseipdb": "AbuseIPDB (https://www.abuseipdb.com/account/api)",
@@ -197,7 +214,7 @@ def configure():
     click.echo("Leave blank to skip. Keys are saved to ~/.abuse-ip-checker/config.yaml\n")
 
     for source, description in sources.items():
-        current = config["api_keys"].get(source)
+        current = api_keys.get(source)
         if current:
             masked = current[:8] + "..." + current[-4:]
             prompt = f"{description}\n  Current: {masked}\n  New key (blank to keep)"
@@ -206,7 +223,7 @@ def configure():
 
         new_key = click.prompt(prompt, default="", show_default=False)
         if new_key:
-            config["api_keys"][source] = new_key
+            api_keys[source] = new_key
             click.echo("  Saved.\n")
         elif current:
             click.echo("  Kept existing.\n")
@@ -225,7 +242,7 @@ def configure():
     click.echo("\nFree sources (always active): DNS Blocklists, WHOIS, ipinfo.io")
 
 
-def main():
+def main() -> None:
     cli()
 
 

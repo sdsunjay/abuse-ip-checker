@@ -1,12 +1,13 @@
 import json
 import re
+from typing import Any
 
 from abuse_ip_checker.domain.models import IPResult
 
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
-def _safe(s) -> str:
+def _safe(s: object) -> str:
     """Strip control characters from third-party / attacker-controlled strings.
 
     AbuseIPDB report comments are user-submitted; an unsanitized comment with
@@ -45,7 +46,7 @@ def format_table(results: list[IPResult]) -> str:
 
     # Summary
     total = len(results)
-    counts = {}
+    counts: dict[str, int] = {}
     for r in results:
         counts[r.threat_level] = counts.get(r.threat_level, 0) + 1
 
@@ -64,7 +65,7 @@ def format_verbose(results: list[IPResult]) -> str:
     if not results:
         return "No IPs to display."
 
-    sections = []
+    sections: list[str] = []
     for r in sorted(results, key=lambda x: _threat_sort_key(x.threat_level)):
         lines = [f"{'=' * 60}", f"IP: {r.ip}  [{r.threat_level}]", f"{'=' * 60}"]
 
@@ -107,7 +108,7 @@ def format_verbose(results: list[IPResult]) -> str:
                 reported_at = _safe(report.get("reported_at")) or "?"
                 comment = _safe(report.get("comment")) or "No comment"
                 country = _safe(report.get("reporter_country")) or "?"
-                categories = report.get("categories", [])
+                categories: list[Any] = list(report.get("categories") or [])
                 lines.append(f"    [{reported_at}] {comment}")
                 lines.append(f"      Categories: {categories}, Country: {country}")
             if len(r.reports) > 10:

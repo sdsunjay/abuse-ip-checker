@@ -15,7 +15,7 @@ permissions:
 jobs:
   lint:
     name: Lint (pre-commit)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -37,9 +37,32 @@ jobs:
       - name: Run pre-commit on all files
         run: uvx pre-commit run --all-files --show-diff-on-failure --color always
 
+  typecheck:
+    name: Typecheck (pyright)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install project
+        run: |
+          uv venv --python 3.12
+          uv pip install -e .
+          uv pip install pytest types-pyyaml types-requests
+
+      - name: Run pyright
+        run: uvx pyright
+
   test:
     name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -59,14 +82,22 @@ jobs:
         run: |
           uv venv --python ${{ matrix.python-version }}
           uv pip install -e .
-          uv pip install pytest
+          uv pip install pytest pytest-cov
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: uv run pytest tests/ -v
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: warn
+          retention-days: 7
 
   build:
     name: Build distributions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 

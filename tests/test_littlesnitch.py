@@ -1,11 +1,16 @@
 import json
 import os
 import tempfile
+from typing import Any
 
-from abuse_ip_checker.services.littlesnitch import is_domain, is_public_ip, parse_littlesnitch_export
+from abuse_ip_checker.services.littlesnitch import (
+    is_domain,
+    is_public_ip,
+    parse_littlesnitch_export,
+)
 
 
-def _make_export(rules):
+def _make_export(rules: list[dict[str, Any]]) -> dict[str, Any]:
     """Helper: create a minimal LS export JSON with given rules."""
     return {"rules": rules}
 

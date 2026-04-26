@@ -1,5 +1,10 @@
 # API key storage (constants.py is now a tracked shim, no secrets)
 config.yaml
+
+# Local-only working data
+blacklist/
+file1.txt
+file2.txt
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
