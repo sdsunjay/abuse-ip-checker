@@ -219,6 +219,21 @@ def check_ipinfo(ip, result):
         parse_ipinfo_response(data, result)
 
 
+def fetch_abuseipdb_blacklist(api_key, confidence_minimum=75):
+    """Fetch the AbuseIPDB blacklist (IPs at >= confidence_minimum). Returns list or None."""
+    def do_fetch():
+        resp = requests.get(
+            "https://api.abuseipdb.com/api/v2/blacklist",
+            headers={"Key": api_key, "Accept": "application/json"},
+            params={"confidenceMinimum": confidence_minimum},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", [])
+
+    return retry_with_backoff(do_fetch)
+
+
 def check_all_sources(ip, config_path=None):
     """Run all configured sources against an IP. Returns populated IPResult."""
     result = IPResult(ip=ip)

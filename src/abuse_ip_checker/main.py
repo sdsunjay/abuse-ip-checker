@@ -1,13 +1,16 @@
 # solution.py
-import click
+import csv
+import os
 import socket
 import ipaddress
+from datetime import datetime
+
+import click
 
 from abuse_ip_checker.config.config import get_api_key, get_all_keys, save_config, load_config, CONFIG_FILE, migrate_from_constants
-from abuse_ip_checker.clients.sources import check_all_sources
+from abuse_ip_checker.clients.sources import check_all_sources, fetch_abuseipdb_blacklist
 from abuse_ip_checker.utils.output import format_table, format_verbose, format_json
-from abuse_ip_checker.services.littlesnitch import load_littlesnitch_file, resolve_domain
-from abuse_ip_checker.domain.models import IPResult
+from abuse_ip_checker.services.littlesnitch import load_littlesnitch_file, resolve_domain, is_public_ip
 
 
 def is_valid_ip(address):
@@ -86,8 +89,7 @@ def check(ip, domain, filename, output_json, verbose):
     """Check IPs/domains against all configured threat intel sources."""
     ips = collect_ips(ip, domain, filename)
     if not ips:
-        click.echo("No valid IPs to check. Use --ip, --domain, or --filename.", err=True)
-        return
+        raise click.ClickException("No valid IPs to check. Use --ip, --domain, or --filename.")
 
     click.echo(f"Checking {len(ips)} IPs against all configured sources...\n", err=True)
 
@@ -122,7 +124,7 @@ def scan_littlesnitch(filepath, output_json, verbose):
             ips_with_context.setdefault(ip, []).extend(processes)
         elif domain:
             resolved = resolve_domain(domain)
-            if resolved and is_valid_ip(resolved):
+            if resolved and is_public_ip(resolved):
                 ips_with_context.setdefault(resolved, []).extend(processes)
 
     # Deduplicate process lists
@@ -143,36 +145,24 @@ def scan_littlesnitch(filepath, output_json, verbose):
 @cli.command()
 def blacklist():
     """Download the AbuseIPDB blacklist to CSV."""
-    import csv
-    import os
-    from datetime import datetime
-
     api_key = get_api_key("abuseipdb")
     if not api_key:
-        click.echo("Error: AbuseIPDB API key not configured. Run 'abuse-ip-checker configure' first.", err=True)
-        return
+        raise click.ClickException(
+            "AbuseIPDB API key not configured. Run 'abuse-ip-checker configure' first."
+        )
 
-    import requests
     click.echo("Downloading blacklist from AbuseIPDB...", err=True)
+    blacklist_data = fetch_abuseipdb_blacklist(api_key)
+    if blacklist_data is None:
+        raise click.ClickException("Failed to download blacklist (see warnings above).")
 
-    resp = requests.get(
-        "https://api.abuseipdb.com/api/v2/blacklist",
-        headers={"Key": api_key, "Accept": "application/json"},
-        params={"confidenceMinimum": 75},
-    )
-    if resp.status_code != 200:
-        click.echo(f"Error: {resp.status_code} {resp.text}", err=True)
-        return
-
-    blacklist_data = resp.json()["data"]
     blacklist_dir = "blacklist"
     os.makedirs(blacklist_dir, exist_ok=True)
-
     now = datetime.now()
     filename = f"{now.year}-{now.month:02d}-{now.day:02d} {now.hour:02d}:{now.minute:02d}.csv"
     filepath = os.path.join(blacklist_dir, filename)
 
-    with open(filepath, mode="w", newline="") as f:
+    with open(filepath, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["ipAddress", "abuseConfidenceScore"])
         for entry in blacklist_data:
@@ -208,11 +198,11 @@ def configure():
         new_key = click.prompt(prompt, default="", show_default=False)
         if new_key:
             config["api_keys"][source] = new_key
-            click.echo(f"  Saved.\n")
+            click.echo("  Saved.\n")
         elif current:
-            click.echo(f"  Kept existing.\n")
+            click.echo("  Kept existing.\n")
         else:
-            click.echo(f"  Skipped.\n")
+            click.echo("  Skipped.\n")
 
     save_config(config)
     click.echo(f"Configuration saved to {CONFIG_FILE}")
@@ -226,7 +216,6 @@ def configure():
     click.echo("\nFree sources (always active): DNS Blocklists, WHOIS, ipinfo.io")
 
 
-# Keep backwards compatibility: if run directly with old-style args, redirect to check
 def main():
     cli()
 
