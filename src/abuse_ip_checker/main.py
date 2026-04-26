@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 import ipaddress
 
-from constants import API_KEY
+from abuse_ip_checker.config.constants import API_KEY
 
 
 def report_for_ip(ip, page_num):
