@@ -1,97 +1,14 @@
+# solution.py
 import click
-import requests
-import csv
-import os
-from datetime import datetime
+import socket
 import ipaddress
 
-from abuse_ip_checker.config.constants import API_KEY
+from abuse_ip_checker.config.config import get_api_key, get_all_keys, save_config, load_config, CONFIG_FILE, migrate_from_constants
+from abuse_ip_checker.clients.sources import check_all_sources
+from abuse_ip_checker.utils.output import format_table, format_verbose, format_json
+from abuse_ip_checker.services.littlesnitch import load_littlesnitch_file, resolve_domain
+from abuse_ip_checker.domain.models import IPResult
 
-
-def report_for_ip(ip, page_num):
-    url = f'https://api.abuseipdb.com/api/v2/reports'
-    params = {
-        'ipAddress': ip,
-        'maxAgeInDays': '90',
-        'perPage': '25',
-        'page': str(page_num)
-    }
-    headers = {
-        'Accept': 'application/json',
-        'Key': API_KEY
-    }
-
-    last_page = 1
-
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
-
-    if response.status_code == 200 and 'data' in data:
-        last_page = data['data'].get('lastPage', 0)
-        reports = data['data']['results']
-        print(f"Reports for IP Address: {ip}")
-        for report in reports:
-            print(f"Reported At: {report['reportedAt']}")
-            print(f"Comment: {report['comment']}")
-            print(f"Categories: {report['categories']}")
-            print(f"Reporter ID: {report['reporterId']}")
-            print(f"Reporter Country: {report['reporterCountryCode']}")
-            print('-' * 40)
-    else:
-        print(f"Error fetching reports for IP {ip}: {data.get('errors', [{}])[0].get('detail', 'Unknown error')}")
-    if page_num != last_page:
-        page_num +=1
-        if page_num < 3:
-            report_for_ip(ip, page_num)
-        else:
-            print(f"We stopped at {page_num}, but {last_page} is the last page")
-
-
-def check_ip(ip):
-    url = f'https://api.abuseipdb.com/api/v2/check'
-    params = {
-        'ipAddress': ip,
-        'maxAgeInDays': '90'
-    }
-    headers = {
-        'Accept': 'application/json',
-        'Key': API_KEY
-    }
-
-    response = requests.get(url, headers=headers, params=params)
-    data = response.json()
-    if response.status_code == 200:
-        is_white_listed = data['data'].get('isWhitelisted', False)
-        number_of_reports = data['data']['totalReports']
-        print(f"IP Address: {data['data']['ipAddress']}")
-        print(f"Is White Listed: {is_white_listed if is_white_listed else 'N/A'}")
-        print(f"Last Reported At: {data['data'].get('lastReportedAt', 'N/A')}")
-        print(f"Abuse Confidence Score: {data['data']['abuseConfidenceScore']}")
-        print(f"Total Reports: {number_of_reports}")
-
-        if not is_white_listed and number_of_reports > 0:
-            report_for_ip(ip=ip, page_num=1)
-            # print("Recent Reports:")
-            #for report in data['data']['reports']:
-            #    print(f" - {report['reportedAt']}: {report['comment']}")
-        else:
-            print("No recent reports found.")
-
-        # Additional information
-        print(f"ISP: {data['data'].get('isp', 'N/A')}")
-        print(f"Usage Type: {data['data'].get('usageType', 'N/A')}")
-        print(f"Domain Name: {data['data'].get('domain', 'N/A')}")
-        print(f"Country: {data['data'].get('countryName', 'N/A')}")
-        print(f"City: {data['data'].get('city', 'N/A')}")
-    else:
-        print(f"Error: {data['errors'][0]['detail']}")
-
-def resolve_domain_to_ip(domain):
-    try:
-        ip = socket.gethostbyname(domain)
-        return ip
-    except socket.gaierror:
-        print(f"Error: Unable to resolve domain {domain}")
 
 def is_valid_ip(address):
     try:
@@ -100,80 +17,219 @@ def is_valid_ip(address):
     except ValueError:
         return False
 
-def read_ips_from_file(filename, ip_set):
-    with open(filename, 'r') as file:
-        for line in file:
+
+def resolve_domain_to_ip(domain):
+    try:
+        return socket.gethostbyname(domain)
+    except socket.gaierror:
+        click.echo(f"Warning: Unable to resolve domain {domain}", err=True)
+        return None
+
+
+def read_ips_from_file(filename):
+    """Read IPs and domains from a file, return set of IPs."""
+    ips = set()
+    with open(filename, "r") as f:
+        for line in f:
             line = line.strip()
-            if line:
-                ip_set.add(line if is_valid_ip(line) else resolve_domain_to_ip(line))
+            if not line:
+                continue
+            if is_valid_ip(line):
+                ips.add(line)
+            else:
+                resolved = resolve_domain_to_ip(line)
+                if resolved:
+                    ips.add(resolved)
+    return ips
 
-def add_ip(ip_set, ip=None, domain=None):
+
+def collect_ips(ip=None, domain=None, filename=None):
+    """Collect IPs from all input sources."""
+    ips = set()
+    if filename:
+        ips.update(read_ips_from_file(filename))
     if ip and is_valid_ip(ip):
-        ip_set.add(ip)
+        ips.add(ip)
     if domain:
-        resolved_ip = resolve_domain_to_ip(domain)
-        if resolved_ip and is_valid_ip(resolved_ip):
-            ip_set.add(resolved_ip)
+        resolved = resolve_domain_to_ip(domain)
+        if resolved:
+            ips.add(resolved)
+    return ips
 
-def save_blacklist_to_csv(blacklist_data, blacklist_dir):
+
+def display_results(results, output_json, verbose):
+    """Display results in the requested format."""
+    if output_json:
+        click.echo(format_json(results))
+    elif verbose:
+        click.echo(format_verbose(results))
+    else:
+        click.echo(format_table(results))
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
+    """Multi-source threat intelligence IP checker."""
+    migrate_from_constants()
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+@cli.command()
+@click.option("--ip", "-i", help="IP address to check.")
+@click.option("--domain", "-d", help="Domain name to check.")
+@click.option("--filename", "-f", type=click.Path(exists=True), help="File containing IPs/domains to check.")
+@click.option("--json", "output_json", is_flag=True, help="Output results as JSON.")
+@click.option("--verbose", "-v", is_flag=True, help="Show full details for each IP.")
+def check(ip, domain, filename, output_json, verbose):
+    """Check IPs/domains against all configured threat intel sources."""
+    ips = collect_ips(ip, domain, filename)
+    if not ips:
+        click.echo("No valid IPs to check. Use --ip, --domain, or --filename.", err=True)
+        return
+
+    click.echo(f"Checking {len(ips)} IPs against all configured sources...\n", err=True)
+
+    results = []
+    for addr in sorted(ips):
+        result = check_all_sources(addr)
+        results.append(result)
+
+    display_results(results, output_json, verbose)
+
+
+@cli.command("scan-littlesnitch")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("--json", "output_json", is_flag=True, help="Output results as JSON.")
+@click.option("--verbose", "-v", is_flag=True, help="Show full details for each IP.")
+def scan_littlesnitch(filepath, output_json, verbose):
+    """Parse a Little Snitch export and check all allowed public IPs."""
+    click.echo(f"Parsing Little Snitch export: {filepath}\n", err=True)
+
+    entries = load_littlesnitch_file(filepath)
+    click.echo(f"Found {len(entries)} unique targets in allow rules.", err=True)
+
+    # Separate IPs and domains, resolve domains
+    ips_with_context = {}  # ip -> list of processes
+
+    for entry in entries:
+        ip = entry.get("ip")
+        domain = entry.get("domain")
+        processes = entry.get("processes", [])
+
+        if ip:
+            ips_with_context.setdefault(ip, []).extend(processes)
+        elif domain:
+            resolved = resolve_domain(domain)
+            if resolved and is_valid_ip(resolved):
+                ips_with_context.setdefault(resolved, []).extend(processes)
+
+    # Deduplicate process lists
+    for ip in ips_with_context:
+        ips_with_context[ip] = sorted(set(ips_with_context[ip]))
+
+    click.echo(f"Checking {len(ips_with_context)} public IPs...\n", err=True)
+
+    results = []
+    for addr in sorted(ips_with_context.keys()):
+        result = check_all_sources(addr)
+        result.associated_processes = ips_with_context[addr]
+        results.append(result)
+
+    display_results(results, output_json, verbose)
+
+
+@cli.command()
+def blacklist():
+    """Download the AbuseIPDB blacklist to CSV."""
+    import csv
+    import os
+    from datetime import datetime
+
+    api_key = get_api_key("abuseipdb")
+    if not api_key:
+        click.echo("Error: AbuseIPDB API key not configured. Run 'abuse-ip-checker configure' first.", err=True)
+        return
+
+    import requests
+    click.echo("Downloading blacklist from AbuseIPDB...", err=True)
+
+    resp = requests.get(
+        "https://api.abuseipdb.com/api/v2/blacklist",
+        headers={"Key": api_key, "Accept": "application/json"},
+        params={"confidenceMinimum": 75},
+    )
+    if resp.status_code != 200:
+        click.echo(f"Error: {resp.status_code} {resp.text}", err=True)
+        return
+
+    blacklist_data = resp.json()["data"]
+    blacklist_dir = "blacklist"
+    os.makedirs(blacklist_dir, exist_ok=True)
+
     now = datetime.now()
     filename = f"{now.year}-{now.month:02d}-{now.day:02d} {now.hour:02d}:{now.minute:02d}.csv"
     filepath = os.path.join(blacklist_dir, filename)
 
-    os.makedirs(blacklist_dir, exist_ok=True)
-
-    with open(filepath, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['ipAddress', 'abuseConfidenceScore'])
+    with open(filepath, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["ipAddress", "abuseConfidenceScore"])
         for entry in blacklist_data:
-            writer.writerow([entry['ipAddress'], entry['abuseConfidenceScore']])
+            writer.writerow([entry["ipAddress"], entry["abuseConfidenceScore"]])
 
-    return filepath
+    click.echo(f"Blacklist saved to: {filepath} ({len(blacklist_data)} IPs)")
 
-def download_blacklist(blacklist_dir, confidence_minimum=75):
-    url = 'https://api.abuseipdb.com/api/v2/blacklist'
-    headers = {
-        'Key': API_KEY,
-        'Accept': 'application/json'
+
+@cli.command()
+def configure():
+    """Interactively configure API keys."""
+    config = load_config()
+    if "api_keys" not in config:
+        config["api_keys"] = {}
+
+    sources = {
+        "abuseipdb": "AbuseIPDB (https://www.abuseipdb.com/account/api)",
+        "virustotal": "VirusTotal (https://www.virustotal.com/gui/my-apikey)",
+        "shodan": "Shodan (https://account.shodan.io/)",
     }
-    params = {
-        'confidenceMinimum': confidence_minimum
-    }
 
-    # default limit is 10,000 IPs with no subscription
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        blacklist_data = response.json()['data']
-        filepath = save_blacklist_to_csv(blacklist_data, blacklist_dir)
-        return filepath
-    else:
-        response.raise_for_status()
+    click.echo("Configure API keys for threat intelligence sources.\n")
+    click.echo("Leave blank to skip. Keys are saved to ~/.abuse-ip-checker/config.yaml\n")
 
-@click.command()
-@click.option('--ip', '-i', help='The IP address to check.')
-@click.option('--domain', '-d', help='The domain name to check.')
-@click.option('--filename', '-f', type=click.Path(exists=True), help='File containing IP addresses to check.')
-@click.option('--blacklist', is_flag=True, help='Download blacklist from AbuseIPDB.')
-def main(ip, domain, filename, blacklist):
-    ips = set()
+    for source, description in sources.items():
+        current = config["api_keys"].get(source)
+        if current:
+            masked = current[:8] + "..." + current[-4:]
+            prompt = f"{description}\n  Current: {masked}\n  New key (blank to keep)"
+        else:
+            prompt = f"{description}\n  Key (blank to skip)"
 
-    if blacklist:
-        blacklist_dir = "blacklist"
+        new_key = click.prompt(prompt, default="", show_default=False)
+        if new_key:
+            config["api_keys"][source] = new_key
+            click.echo(f"  Saved.\n")
+        elif current:
+            click.echo(f"  Kept existing.\n")
+        else:
+            click.echo(f"  Skipped.\n")
 
-        filepath = download_blacklist(blacklist_dir)
-        click.echo(f'Blacklist saved to: {filepath}')
+    save_config(config)
+    click.echo(f"Configuration saved to {CONFIG_FILE}")
 
-    if filename:
-        read_ips_from_file(filename, ips)
-    else:
-        add_ip(ips, ip, domain)
+    # Show summary
+    click.echo("\nConfigured sources:")
+    all_keys = get_all_keys()
+    for source in sources:
+        status = "configured" if all_keys.get(source) else "not set"
+        click.echo(f"  {source}: {status}")
+    click.echo("\nFree sources (always active): DNS Blocklists, WHOIS, ipinfo.io")
 
-    for ip in ips:
-        if ip:
-            print(f"Checking IP: {ip}")
-            check_ip(ip)
-            print('-' * 60)
 
-if __name__ == '__main__':
+# Keep backwards compatibility: if run directly with old-style args, redirect to check
+def main():
+    cli()
+
+
+if __name__ == "__main__":
     main()
-

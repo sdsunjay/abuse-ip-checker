@@ -1,7 +1,7 @@
 [project]
 name = "abuse-ip-checker"
-version = "1.0.0"
-description = "Check IP addresses against AbuseIPDB for abuse reports and threat intelligence"
+version = "2.0.0"
+description = "Multi-source threat intelligence CLI for checking IP addresses"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-abuse-ip-checker = "abuse_ip_checker.main:main"
+abuse-ip-checker = "abuse_ip_checker.main:cli"
 
 [build-system]
 requires = ["setuptools>=68.0"]
