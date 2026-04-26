@@ -1,6 +1,6 @@
-import os
 import yaml
-from abuse_ip_checker.config.config import get_api_key, load_config, save_config, CONFIG_DIR, CONFIG_FILE
+
+from abuse_ip_checker.config.config import get_api_key, load_config, save_config
 
 
 def test_get_api_key_from_env(monkeypatch):

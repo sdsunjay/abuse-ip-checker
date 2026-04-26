@@ -1,5 +1,6 @@
 import json
 import re
+
 from abuse_ip_checker.domain.models import IPResult
 
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
@@ -36,7 +37,9 @@ def format_table(results: list[IPResult]) -> str:
         score = str(r.abuse_score) if r.abuse_score is not None else "-"
         org = _truncate(_safe(r.org or r.isp or "-"), 29)
         country = _safe(r.country or "-")
-        lines.append(f"{r.ip:<20} {r.threat_level:<10} {score:<7} {r.total_reports:<9} {org:<30} {country:<10}")
+        lines.append(
+            f"{r.ip:<20} {r.threat_level:<10} {score:<7} {r.total_reports:<9} {org:<30} {country:<10}"
+        )
 
     lines.append(separator)
 
@@ -63,7 +66,7 @@ def format_verbose(results: list[IPResult]) -> str:
 
     sections = []
     for r in sorted(results, key=lambda x: _threat_sort_key(x.threat_level)):
-        lines = [f"{'='*60}", f"IP: {r.ip}  [{r.threat_level}]", f"{'='*60}"]
+        lines = [f"{'=' * 60}", f"IP: {r.ip}  [{r.threat_level}]", f"{'=' * 60}"]
 
         if r.hostname:
             lines.append(f"  Hostname:     {_safe(r.hostname)}")
@@ -83,7 +86,9 @@ def format_verbose(results: list[IPResult]) -> str:
         lines.append("")
         lines.append(f"  Abuse Score:  {r.abuse_score if r.abuse_score is not None else 'N/A'}")
         lines.append(f"  Reports:      {r.total_reports}")
-        lines.append(f"  Whitelisted:  {r.is_whitelisted if r.is_whitelisted is not None else 'N/A'}")
+        lines.append(
+            f"  Whitelisted:  {r.is_whitelisted if r.is_whitelisted is not None else 'N/A'}"
+        )
         lines.append(f"  Last Report:  {_safe(r.last_reported) or 'N/A'}")
 
         if r.virustotal_score is not None:
@@ -99,10 +104,10 @@ def format_verbose(results: list[IPResult]) -> str:
         if r.reports:
             lines.append(f"\n  Abuse Reports ({len(r.reports)}):")
             for report in r.reports[:10]:
-                reported_at = _safe(report.get('reported_at')) or "?"
-                comment = _safe(report.get('comment')) or "No comment"
-                country = _safe(report.get('reporter_country')) or "?"
-                categories = report.get('categories', [])
+                reported_at = _safe(report.get("reported_at")) or "?"
+                comment = _safe(report.get("comment")) or "No comment"
+                country = _safe(report.get("reporter_country")) or "?"
+                categories = report.get("categories", [])
                 lines.append(f"    [{reported_at}] {comment}")
                 lines.append(f"      Categories: {categories}, Country: {country}")
             if len(r.reports) > 10:

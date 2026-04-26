@@ -1,16 +1,23 @@
 # solution.py
 import csv
+import ipaddress
 import os
 import socket
-import ipaddress
 from datetime import datetime
 
 import click
 
-from abuse_ip_checker.config.config import get_api_key, get_all_keys, save_config, load_config, CONFIG_FILE, migrate_from_constants
 from abuse_ip_checker.clients.sources import check_all_sources, fetch_abuseipdb_blacklist
-from abuse_ip_checker.utils.output import format_table, format_verbose, format_json
-from abuse_ip_checker.services.littlesnitch import load_littlesnitch_file, resolve_domain, is_public_ip
+from abuse_ip_checker.config.config import (
+    CONFIG_FILE,
+    get_all_keys,
+    get_api_key,
+    load_config,
+    migrate_from_constants,
+    save_config,
+)
+from abuse_ip_checker.services.littlesnitch import is_public_ip, load_littlesnitch_file, resolve_domain
+from abuse_ip_checker.utils.output import format_json, format_table, format_verbose
 
 
 def is_valid_ip(address):
@@ -32,7 +39,7 @@ def resolve_domain_to_ip(domain):
 def read_ips_from_file(filename):
     """Read IPs and domains from a file, return set of IPs."""
     ips = set()
-    with open(filename, "r") as f:
+    with open(filename) as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -82,7 +89,9 @@ def cli(ctx):
 @cli.command()
 @click.option("--ip", "-i", help="IP address to check.")
 @click.option("--domain", "-d", help="Domain name to check.")
-@click.option("--filename", "-f", type=click.Path(exists=True), help="File containing IPs/domains to check.")
+@click.option(
+    "--filename", "-f", type=click.Path(exists=True), help="File containing IPs/domains to check."
+)
 @click.option("--json", "output_json", is_flag=True, help="Output results as JSON.")
 @click.option("--verbose", "-v", is_flag=True, help="Show full details for each IP.")
 def check(ip, domain, filename, output_json, verbose):

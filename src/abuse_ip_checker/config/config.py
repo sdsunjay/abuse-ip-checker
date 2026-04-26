@@ -1,4 +1,5 @@
 import os
+
 import yaml
 
 CONFIG_DIR = os.path.expanduser("~/.abuse-ip-checker")
@@ -15,7 +16,7 @@ def load_config(config_path=None):
     """Load config from YAML file. Returns empty dict if file doesn't exist."""
     path = config_path or CONFIG_FILE
     if os.path.exists(path):
-        with open(path, "r") as f:
+        with open(path) as f:
             return yaml.safe_load(f) or {}
     return {}
 
@@ -67,7 +68,7 @@ def migrate_from_constants():
         constants_path = os.path.join(os.path.dirname(__file__), "constants.py")
         if not os.path.exists(constants_path):
             return
-        with open(constants_path, "r") as f:
+        with open(constants_path) as f:
             content = f.read()
         if "from abuse_ip_checker.config.config import" in content:
             return  # already migrated to shim
@@ -82,7 +83,9 @@ def migrate_from_constants():
                     save_config(config)
                     print(f"Migrated AbuseIPDB API key to {CONFIG_FILE}")
                     with open(constants_path, "w") as f:
-                        f.write('from abuse_ip_checker.config.config import get_api_key\n\nAPI_KEY = get_api_key("abuseipdb")\n')
+                        f.write(
+                            'from abuse_ip_checker.config.config import get_api_key\n\nAPI_KEY = get_api_key("abuseipdb")\n'
+                        )
                     print("Updated constants.py to use config.py")
                     return
     except Exception as e:

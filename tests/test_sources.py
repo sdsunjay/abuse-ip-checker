@@ -1,6 +1,12 @@
 import time
 from unittest.mock import MagicMock
-from abuse_ip_checker.clients.sources import retry_with_backoff, parse_abuseipdb_response, parse_ipinfo_response, reverse_ip
+
+from abuse_ip_checker.clients.sources import (
+    parse_abuseipdb_response,
+    parse_ipinfo_response,
+    retry_with_backoff,
+    reverse_ip,
+)
 from abuse_ip_checker.domain.models import IPResult
 
 
@@ -32,9 +38,11 @@ def test_retry_with_backoff_all_retries_exhausted():
 
 def test_retry_with_backoff_delays_increase():
     call_times = []
+
     def timed_func():
         call_times.append(time.time())
         raise Exception("fail")
+
     retry_with_backoff(timed_func, max_retries=3, base_delay=0.05)
     # Second gap should be roughly 2x the first gap
     if len(call_times) == 3:

@@ -1,10 +1,12 @@
+import socket
+import subprocess
 import sys
 import time
-import subprocess
-import socket
+
 import requests
-from abuse_ip_checker.domain.models import IPResult
+
 from abuse_ip_checker.config.config import get_api_key
+from abuse_ip_checker.domain.models import IPResult
 
 DNSBLS = (
     "dnsbl.dronebl.org",
@@ -15,6 +17,7 @@ DNSBLS = (
 
 # --- Retry wrapper ---
 
+
 def retry_with_backoff(func, max_retries=3, base_delay=1.0):
     """Call func(). On exception, retry with exponential backoff. Returns None if all retries fail."""
     for attempt in range(max_retries):
@@ -22,7 +25,7 @@ def retry_with_backoff(func, max_retries=3, base_delay=1.0):
             return func()
         except Exception as e:
             if attempt < max_retries - 1:
-                delay = base_delay * (2 ** attempt)
+                delay = base_delay * (2**attempt)
                 time.sleep(delay)
             else:
                 print(f"  Warning: {e} (after {max_retries} attempts)", file=sys.stderr)
@@ -31,12 +34,14 @@ def retry_with_backoff(func, max_retries=3, base_delay=1.0):
 
 # --- Helper ---
 
+
 def reverse_ip(ip):
     """Reverse IP octets for DNSBL lookup."""
     return ".".join(ip.split(".")[::-1])
 
 
 # --- Response parsers ---
+
 
 def parse_abuseipdb_response(api_data, result):
     """Parse AbuseIPDB check response into IPResult."""
@@ -67,15 +72,18 @@ def parse_abuseipdb_reports(api_data, result):
     data = api_data.get("data", {})
     reports = data.get("results", [])
     for report in reports:
-        result.reports.append({
-            "reported_at": report.get("reportedAt"),
-            "comment": report.get("comment"),
-            "categories": report.get("categories"),
-            "reporter_country": report.get("reporterCountryCode"),
-        })
+        result.reports.append(
+            {
+                "reported_at": report.get("reportedAt"),
+                "comment": report.get("comment"),
+                "categories": report.get("categories"),
+                "reporter_country": report.get("reporterCountryCode"),
+            }
+        )
 
 
 # --- Source functions ---
+
 
 def check_abuseipdb(ip, result, config_path=None):
     """Check IP against AbuseIPDB. Requires API key."""
@@ -99,6 +107,7 @@ def check_abuseipdb(ip, result, config_path=None):
 
     # Fetch detailed reports if there are any
     if result.total_reports and result.total_reports > 0 and not result.is_whitelisted:
+
         def do_reports():
             resp = requests.get(
                 "https://api.abuseipdb.com/api/v2/reports",
@@ -173,7 +182,7 @@ def check_dns_blocklists(ip, result):
                 result.dns_blocklists.append(bl)
             except socket.gaierror:
                 pass  # Not listed (or DNSBL unreachable — see docstring)
-            except socket.timeout:
+            except TimeoutError:
                 pass
     finally:
         socket.setdefaulttimeout(prev_timeout)
@@ -184,7 +193,9 @@ def check_whois(ip, result):
     try:
         proc = subprocess.run(
             ["dig", "+short", "-x", ip],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         rdns = proc.stdout.strip()
         if rdns and not result.hostname:
@@ -195,13 +206,18 @@ def check_whois(ip, result):
     try:
         proc = subprocess.run(
             ["whois", ip],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         for line in proc.stdout.splitlines():
             lower = line.lower()
-            if lower.startswith("orgname:") and not result.org:
-                result.org = line.split(":", 1)[1].strip()
-            elif lower.startswith("org-name:") and not result.org:
+            if (
+                lower.startswith("orgname:")
+                and not result.org
+                or lower.startswith("org-name:")
+                and not result.org
+            ):
                 result.org = line.split(":", 1)[1].strip()
     except Exception:
         pass
@@ -209,6 +225,7 @@ def check_whois(ip, result):
 
 def check_ipinfo(ip, result):
     """Get geolocation and org from ipinfo.io. No API key needed."""
+
     def do_check():
         resp = requests.get(f"https://ipinfo.io/{ip}/json", timeout=5)
         resp.raise_for_status()
@@ -221,6 +238,7 @@ def check_ipinfo(ip, result):
 
 def fetch_abuseipdb_blacklist(api_key, confidence_minimum=75):
     """Fetch the AbuseIPDB blacklist (IPs at >= confidence_minimum). Returns list or None."""
+
     def do_fetch():
         resp = requests.get(
             "https://api.abuseipdb.com/api/v2/blacklist",
