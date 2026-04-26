@@ -1,5 +1,4 @@
 import os
-import tempfile
 import yaml
 from abuse_ip_checker.config.config import get_api_key, load_config, save_config, CONFIG_DIR, CONFIG_FILE
 
