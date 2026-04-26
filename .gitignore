@@ -1,6 +1,4 @@
-# constants file
-
-constants.py
+# API key storage (constants.py is now a tracked shim, no secrets)
 config.yaml
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -21,11 +21,18 @@ def load_config(config_path=None):
 
 
 def save_config(config, config_path=None):
-    """Save config dict to YAML file. Creates directory if needed."""
+    """Save config dict to YAML file. Creates directory if needed.
+
+    Sets restrictive permissions (0600 file, 0700 dir) since this file
+    holds API secrets.
+    """
     path = config_path or CONFIG_FILE
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    parent = os.path.dirname(path)
+    os.makedirs(parent, mode=0o700, exist_ok=True)
+    os.chmod(parent, 0o700)
     with open(path, "w") as f:
         yaml.dump(config, f, default_flow_style=False)
+    os.chmod(path, 0o600)
 
 
 def get_api_key(source_name, config_path=None):
@@ -62,6 +69,8 @@ def migrate_from_constants():
             return
         with open(constants_path, "r") as f:
             content = f.read()
+        if "from abuse_ip_checker.config.config import" in content:
+            return  # already migrated to shim
         for line in content.splitlines():
             if line.startswith("API_KEY") and "=" in line:
                 key = line.split("=", 1)[1].strip().strip("'\"")
