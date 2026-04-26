@@ -23,7 +23,7 @@ A multi-source threat intelligence CLI tool that checks IP addresses against Abu
    ```bash
    python solution.py configure
    ```
-   This saves keys to `~/.abuse-ip-checker/config.yaml`. You can also set environment variables, which **override** any value in the YAML config:
+   This saves keys to `~/.abuse-ip-checker/config.yaml` (file `0600`, dir `0700`, so only your user can read it). You can also set environment variables, which **override** any value in the YAML config:
    - `ABUSEIPDB_API_KEY`
    - `VIRUSTOTAL_API_KEY` (optional)
    - `SHODAN_API_KEY` (optional)
