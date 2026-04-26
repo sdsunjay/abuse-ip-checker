@@ -20,3 +20,25 @@ repos:
       - id: ruff-check
         args: ["--fix"]
       - id: ruff-format
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.405
+    hooks:
+      - id: pyright
+        additional_dependencies:
+          - click>=8.1.7
+          - pyyaml>=6.0
+          - requests>=2.32.3
+          - pytest
+          - types-pyyaml
+          - types-requests
+
+  - repo: local
+    hooks:
+      - id: bandit
+        name: bandit (uv)
+        entry: uv tool run --from "bandit[toml]==1.9.4" bandit
+        args: ["-q", "-c", "pyproject.toml", "-r", "src"]
+        language: system
+        pass_filenames: false
+        types: [python]

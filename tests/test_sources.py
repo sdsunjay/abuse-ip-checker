@@ -36,10 +36,10 @@ def test_retry_with_backoff_all_retries_exhausted():
     assert func.call_count == 3
 
 
-def test_retry_with_backoff_delays_increase():
-    call_times = []
+def test_retry_with_backoff_delays_increase() -> None:
+    call_times: list[float] = []
 
-    def timed_func():
+    def timed_func() -> None:
         call_times.append(time.time())
         raise Exception("fail")
 

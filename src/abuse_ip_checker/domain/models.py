@@ -1,7 +1,21 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 
-def compute_threat_level(abuse_score, total_reports, virustotal_score, dns_blocklists):
+def _empty_str_list() -> list[str]:
+    return []
+
+
+def _empty_report_list() -> list[dict[str, Any]]:
+    return []
+
+
+def compute_threat_level(
+    abuse_score: int | None,
+    total_reports: int | None,
+    virustotal_score: int | None,
+    dns_blocklists: list[str] | None,
+) -> str:
     """Compute threat level from combined source findings."""
     abuse = abuse_score or 0
     vt = virustotal_score or 0
@@ -32,8 +46,8 @@ class IPResult:
     last_reported: str | None = None
     virustotal_score: int | None = None
     shodan_ports: list[int] | None = None
-    dns_blocklists: list[str] = field(default_factory=list)
-    reports: list[dict] = field(default_factory=list)
+    dns_blocklists: list[str] = field(default_factory=_empty_str_list)
+    reports: list[dict[str, Any]] = field(default_factory=_empty_report_list)
     associated_processes: list[str] | None = None
 
     @property
@@ -42,7 +56,7 @@ class IPResult:
             self.abuse_score, self.total_reports, self.virustotal_score, self.dns_blocklists
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ip": self.ip,
             "hostname": self.hostname,

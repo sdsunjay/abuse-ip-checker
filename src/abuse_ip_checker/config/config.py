@@ -1,27 +1,28 @@
 import os
+from typing import Any, cast
 
 import yaml
 
-CONFIG_DIR = os.path.expanduser("~/.abuse-ip-checker")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.yaml")
+CONFIG_DIR: str = os.path.expanduser("~/.abuse-ip-checker")
+CONFIG_FILE: str = os.path.join(CONFIG_DIR, "config.yaml")
 
-ENV_VAR_MAP = {
+ENV_VAR_MAP: dict[str, str] = {
     "abuseipdb": "ABUSEIPDB_API_KEY",
     "virustotal": "VIRUSTOTAL_API_KEY",
     "shodan": "SHODAN_API_KEY",
 }
 
 
-def load_config(config_path=None):
+def load_config(config_path: str | None = None) -> dict[str, Any]:
     """Load config from YAML file. Returns empty dict if file doesn't exist."""
     path = config_path or CONFIG_FILE
     if os.path.exists(path):
         with open(path) as f:
-            return yaml.safe_load(f) or {}
+            return cast(dict[str, Any], yaml.safe_load(f) or {})
     return {}
 
 
-def save_config(config, config_path=None):
+def save_config(config: dict[str, Any], config_path: str | None = None) -> None:
     """Save config dict to YAML file. Creates directory if needed.
 
     Sets restrictive permissions (0600 file, 0700 dir) since this file
@@ -36,7 +37,7 @@ def save_config(config, config_path=None):
     os.chmod(path, 0o600)
 
 
-def get_api_key(source_name, config_path=None):
+def get_api_key(source_name: str, config_path: str | None = None) -> str | None:
     """Get API key for a source. Checks env var first, then config file."""
     env_var = ENV_VAR_MAP.get(source_name)
     if env_var:
@@ -45,24 +46,31 @@ def get_api_key(source_name, config_path=None):
             return env_val
 
     config = load_config(config_path)
-    key = config.get("api_keys", {}).get(source_name)
-    if key:
+    raw: object = config.get("api_keys") or {}
+    if not isinstance(raw, dict):
+        return None
+    api_keys = cast(dict[str, Any], raw)
+    key = api_keys.get(source_name)
+    if isinstance(key, str) and key:
         return key
 
     return None
 
 
-def get_all_keys(config_path=None):
+def get_all_keys(config_path: str | None = None) -> dict[str, str | None]:
     """Return dict of source_name -> key (or None) for all known sources."""
     return {name: get_api_key(name, config_path) for name in ENV_VAR_MAP}
 
 
-def migrate_from_constants():
+def migrate_from_constants() -> None:
     """Migrate hardcoded API key from constants.py to config file."""
     if os.path.exists(CONFIG_FILE):
         config = load_config()
-        if config.get("api_keys", {}).get("abuseipdb"):
-            return  # already migrated
+        raw: object = config.get("api_keys") or {}
+        if isinstance(raw, dict):
+            api_keys = cast(dict[str, Any], raw)
+            if api_keys.get("abuseipdb"):
+                return  # already migrated
 
     try:
         constants_path = os.path.join(os.path.dirname(__file__), "constants.py")

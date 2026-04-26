@@ -1,9 +1,10 @@
 import ipaddress
 import json
 import socket
+from typing import Any, cast
 
 
-def is_public_ip(addr):
+def is_public_ip(addr: str | None) -> bool:
     """Return True iff addr is a routable public IPv4 address.
 
     IPv6 is intentionally skipped — this checker is IPv4-only.
@@ -29,7 +30,7 @@ def is_public_ip(addr):
     )
 
 
-def is_domain(val):
+def is_domain(val: str | None) -> bool:
     """Return True iff val looks like a domain rather than an IP literal."""
     if not val or ":" in val or "." not in val:
         return False
@@ -40,28 +41,28 @@ def is_domain(val):
         return True
 
 
-def parse_littlesnitch_export(export_data):
+def parse_littlesnitch_export(export_data: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse a Little Snitch export dict. Returns list of dicts with ip/domain and processes.
 
     Returns: [{"ip": "1.2.3.4", "domain": None, "processes": ["com.app1"]}, ...]
     """
-    rules = export_data.get("rules", [])
+    rules = cast(list[dict[str, Any]], export_data.get("rules", []))
     allow_rules = [r for r in rules if r.get("action") == "allow"]
 
     # Collect targets: key is ip or domain, value is set of processes
-    ip_targets = {}  # ip -> set of processes
-    domain_targets = {}  # domain -> set of processes
+    ip_targets: dict[str, set[str]] = {}
+    domain_targets: dict[str, set[str]] = {}
 
     for rule in allow_rules:
-        process = rule.get("process", "unknown")
+        process = str(rule.get("process", "unknown"))
 
         for key in ["remote-addresses", "remote-hosts", "remote-domains"]:
             val = str(rule.get(key, ""))
             if not val:
                 continue
 
-            for part in val.split(","):
-                part = part.strip().strip("'\"[]")
+            for raw_part in val.split(","):
+                part = raw_part.strip().strip("'\"[]")
                 if not part:
                     continue
 
@@ -70,7 +71,7 @@ def parse_littlesnitch_export(export_data):
                 elif is_domain(part):
                     domain_targets.setdefault(part, set()).add(process)
 
-    results = []
+    results: list[dict[str, Any]] = []
     for ip, procs in sorted(ip_targets.items()):
         results.append({"ip": ip, "domain": None, "processes": sorted(procs)})
     for domain, procs in sorted(domain_targets.items()):
@@ -79,14 +80,14 @@ def parse_littlesnitch_export(export_data):
     return results
 
 
-def load_littlesnitch_file(filepath):
+def load_littlesnitch_file(filepath: str) -> list[dict[str, Any]]:
     """Load a Little Snitch export JSON file and parse it."""
     with open(filepath, encoding="utf-8") as f:
-        data = json.load(f)
+        data = cast(dict[str, Any], json.load(f))
     return parse_littlesnitch_export(data)
 
 
-def resolve_domain(domain):
+def resolve_domain(domain: str) -> str | None:
     """Resolve a domain to an IP address. Returns None on failure."""
     try:
         return socket.gethostbyname(domain)

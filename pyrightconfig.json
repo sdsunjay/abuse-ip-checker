@@ -1,0 +1,47 @@
+{
+  "typeCheckingMode": "strict",
+
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "**/node_modules",
+    "build",
+    "dist"
+  ],
+
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Darwin",
+
+  "venvPath": ".",
+  "venv": ".venv",
+
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "pythonVersion": "3.12",
+      "pythonPlatform": "Darwin",
+      "extraPaths": ["src"]
+    }
+  ],
+
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+
+  "reportUnknownParameterType": true,
+  "reportUnknownVariableType": true,
+  "reportUnknownMemberType": true,
+  "reportUnknownArgumentType": true,
+
+  "reportOptionalMemberAccess": true,
+  "reportOptionalCall": true,
+  "reportOptionalSubscript": true,
+
+  "reportUnusedImport": true,
+  "reportUnusedVariable": true,
+
+  "useLibraryCodeForTypes": true
+}
