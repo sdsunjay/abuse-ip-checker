@@ -1,0 +1,28 @@
+[project]
+name = "abuse-ip-checker"
+version = "1.0.0"
+description = "Check IP addresses against AbuseIPDB for abuse reports and threat intelligence"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "certifi>=2024.6.2",
+    "charset-normalizer>=3.3.2",
+    "click>=8.1.7",
+    "idna>=3.7",
+    "requests>=2.32.3",
+    "urllib3>=2.2.1",
+]
+
+[project.scripts]
+abuse-ip-checker = "abuse_ip_checker.main:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
