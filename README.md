@@ -4,7 +4,11 @@ A multi-source threat intelligence CLI tool that checks IP addresses against Abu
 
 ## Setup
 
-This project is managed with [uv](https://docs.astral.sh/uv/). Install uv first if you don't have it (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+This project is managed with [uv](https://docs.astral.sh/uv/). Install uv first if you don't have it:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 1. Clone the repository:
    ```bash
@@ -12,7 +16,7 @@ This project is managed with [uv](https://docs.astral.sh/uv/). Install uv first 
    cd abuse-ip-checker
    ```
 
-2. Create a venv and install the project (Python 3.10+ required):
+2. Create a venv and install the project (Python 3.12+ required):
    ```bash
    uv venv
    uv pip install -e .
@@ -38,12 +42,12 @@ This project is managed with [uv](https://docs.astral.sh/uv/). Install uv first 
 
 ```bash
 # Check a single IP
-uv run abuse-ip-checker check --ip 1.2.3.4
+uv run abuse-ip-checker check --ip 8.8.8.8
 
 # Check a domain
 uv run abuse-ip-checker check --domain example.com
 
-# Check IPs from a file (one per line, IPs or domains)
+# Check IPs/domains from a file (one per line)
 uv run abuse-ip-checker check -f ips.txt
 
 # JSON output (for piping to other tools)
@@ -81,6 +85,32 @@ uv run abuse-ip-checker blacklist
 
 ```bash
 uv run abuse-ip-checker configure
+```
+
+## Example Output
+
+```bash
+$ uv run abuse-ip-checker scan-littlesnitch /tmp/ls_model.json
+```
+```text
+Parsing Little Snitch export: /tmp/ls_rules.json
+
+Found 251 unique targets in allow rules.
+Checking 209 public IPs...
+
+-------------------------------------------------------------------------------------------
+IP                   Threat     Score   Reports   Org                            Country
+-------------------------------------------------------------------------------------------
+#.#.#.#              CRITICAL   94      140       Resource Quality Assurance     -
+160.79.104.10        WARNING    38      30        AS399358 Anthropic, PBC        -
+185.199.108.153      WARNING    30      8         AS54113 Fastly, Inc.           -
+104.16.175.226       LOW        0       6         AS13335 Cloudflare, Inc.       -
+8.8.8.8              LOW        0       52        AS15169 Google LLC             -
+140.82.113.17        CLEAN      0       0         AS36459 GitHub, Inc.           -
+...
+-------------------------------------------------------------------------------------------
+209 IPs checked  154 CLEAN  48 LOW  6 WARNING  1 CRITICAL
+-------------------------------------------------------------------------------------------
 ```
 
 ## Threat Intelligence Sources

@@ -4,7 +4,7 @@ version = "2.0.0"
 description = "Multi-source threat intelligence CLI for checking IP addresses"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "click>=8.1.7",
     "pyyaml>=6.0",
@@ -26,7 +26,7 @@ pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 src = ["src"]
 
 [tool.ruff.lint]
